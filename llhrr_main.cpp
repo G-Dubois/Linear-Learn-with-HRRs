@@ -18,7 +18,7 @@
 // Utilities
 #include <random>     // For random nuber generation
 #include <time.h>     // For initializing random seed
-#include <limits>      // For int max
+#include <limits>     // For int max
 #include <cmath>
 
 // Custom Class Dependencies
@@ -28,7 +28,7 @@
 // Namespace Declarations
 using namespace std;
 
-const int INT_MAX = numeric_limits<int>::max();
+const int IntMax = numeric_limits<int>::max();
 
 // Enum Move indicates a movement left or right
 enum Move {
@@ -39,19 +39,20 @@ enum Move {
 // World variables
 vector<State> world;
 int worldSize;
+int vectorLength;
 double alpha;
 double lambda;
 double epsilon;
 double discount;
 int numberOfRuns;
 
-vector<double> eligibility(1024);
-vector<double> weights(1024);
+vector<double> eligibility;
+vector<double> weights;
 
 int goalLocation;
 int agentLocation;
 
-HRREngine hrrEngine(1024);
+HRREngine hrrEngine;
 
 // Statistical variables
 int averageNumberOfSteps;
@@ -85,9 +86,16 @@ int main (int argc, char** argv) {
         getSettingsFromFile(argv[1]);
     } else {
         worldSize = 64;
-        alpha = 0.5;
+        vectorLength = 1024;
+        alpha = 0.1;
+        lambda = 0.5;
         discount = 0.9;
+        epsilon = 0.05;
     }
+
+    eligibility.resize(vectorLength);
+    weights.resize(vectorLength);
+    hrrEngine.setVectorSize(vectorLength);
 
     // Set up a log file
     ofstream Log;
@@ -101,7 +109,7 @@ int main (int argc, char** argv) {
     for (int i = 0; i < worldSize; i++) {
 
         // Create a new state and add it to the world array
-        State newState(0,  i);
+        State newState(0, vectorLength, i);
         world.push_back(newState);
     }
 
@@ -113,7 +121,7 @@ int main (int argc, char** argv) {
     // Set up statistical variables
     averageNumberOfSteps = 0;
     maxNumberOfSteps = 0;
-    minNumberOfSteps = INT_MAX;
+    minNumberOfSteps = IntMax;
 
     // Set up a location for the goal
     goalLocation = randomNumberGenerator() % worldSize;
@@ -128,14 +136,18 @@ int main (int argc, char** argv) {
         // Initialize Episode statistical variables
         int numberOfSteps = 0;
 
-        // Set up a variable for the previous state
-        State* thisState = &world[agentLocation];
-
         // Reset the eligibility vector
         fill(eligibility.begin(), eligibility.end(), 0);
 
+        State* thisState;
+
         // Movement through an episode
         do {
+
+            // Set up a variable for the previous state
+            thisState = &world[agentLocation];
+
+            cout << "Goal Location: " << goalLocation << "\tCurrent State: " << thisState->isAt() << "\n";
 
             // Update the eligibility of the current state
             updateEligibility(thisState->getHRR());
@@ -143,31 +155,70 @@ int main (int argc, char** argv) {
             // If we are at the goal, calculate the td error differently, since
             //  there are no future steps
             if (thisState->isAt() == goalLocation) {
-                cout << "At the goal!";
+                cout << "Goal reached in " << numberOfSteps << " steps.\n";
+
+                State G = *thisState;
+                HRR a = G.getHRR();
+
+                double TDError = r(G) - V(G);
+                cout << "\n\nr(G) = " << r(G) << "\tV(G) = " << V(G) << "\n\n";
+                cout << "TDError: " << TDError << "\n";
+
+                for ( int x = 0; x < weights.size(); x++ ) {
+                    weights[x] += alpha * TDError * a[x];
+                }
+
                 break;
+            } else {
+                // Choose a movement for the agent
+                Move movement = chooseMovement( world[getLeftLocation( agentLocation )],
+                                                world[agentLocation],
+                                                world[getRightLocation( agentLocation )] );
+
+                // Perform the movement
+                switch (movement) {
+                    case Left:
+                        agentLocation = getLeftLocation(agentLocation);
+                        break;
+                    case Right:
+                        agentLocation = getRightLocation(agentLocation);
+                        break;
+                    default:
+                        agentLocation = getLeftLocation(agentLocation);
+                        break;
+                }
+
+                State* nextState = &world[agentLocation];
+
+                // Update the weights
+                State s = *thisState;
+                State sPlus1 = *nextState;
+                HRR a = s.getHRR();
+
+                double TDError = ( r(s) + discount * V(sPlus1) ) - V(s);
+                cout << "r(s) = " << r(s) << "\tV(s+1) = " << V(sPlus1) << "\tV(s) = " << V(s) << "\n";
+                cout << "TDError: " << TDError << '\n';
+
+                cout << "Run: " << i << ", Step: " << numberOfSteps << ", Location: "
+                     << agentLocation << ", Goal: " << goalLocation << "\n";
+
+                for ( int x = 0; x < vectorLength; x++ ) {
+                    weights[x] += alpha * TDError * a[x];
+                }
             }
 
-            // Choose a movement for the agent
-            Move movement = chooseMovement( world[getLeftLocation( agentLocation )],
-                                            world[agentLocation],
-                                            world[getRightLocation( agentLocation )] );
+            numberOfSteps++;
 
-            // Perform the movement
-            switch (movement) {
-                case Left:
-                    agentLocation = getLeftLocation(agentLocation);
-                    break;
-                case Right:
-                    agentLocation = getRightLocation(agentLocation);
-                    break;
-                default:
-                    agentLocation = getLeftLocation(agentLocation);
-                    break;
-            }
+        } while ( numberOfSteps <= 100 );
+    }
 
-            State* nextState = &world[agentLocation];
+    //cout << "The size of the hrrs is: " << hrrEngine.getVectorSize() << "\n";
+    //cout << "The size of the eligibility vector is: " << eligibility.size() << "\n";
+    //cout << "The size of the weight vector is: " << weights.size() << "\n";
 
-        } while (agentLocation != goalLocation);
+    cout << "Values of each state:\n";
+    for (int i = 0; i < worldSize; i++) {
+        cout << "\tV(" << i << ") = " << V(world[i]) << "\n";
     }
 
     return 0;
@@ -185,7 +236,7 @@ void getSettingsFromFile(string filename) {
     getline(fin, _);
 
     // Get the data from the input file
-    fin >> worldSize >> alpha >> discount >> numberOfRuns;
+    fin >> worldSize >> vectorLength >> alpha >> lambda >> epsilon >> discount >> numberOfRuns;
 }
 
 void updateEligibility(HRR a) {
@@ -268,7 +319,7 @@ unsigned int getRightLocation(int currentLocation) {
 
 // Get the value of a state
 double V(State s) {
-    return hrrEngine.dot(s.getHRR, weights);
+    return hrrEngine.dot(s.getHRR(), weights);
 }
 
 // Get the reward of a state

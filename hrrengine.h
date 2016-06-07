@@ -153,7 +153,7 @@ public:
 	bool compare(HRR hrr1, HRR hrr2);
 
 	// Calculate the dot product of two HRRs
-	float dot(HRR hrr1, HRR hrr2);
+	double dot(HRR hrr1, HRR hrr2);
 };
 
 #endif	/* HRR_ENGINE */

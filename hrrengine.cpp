@@ -500,7 +500,7 @@ bool HRREngine::compare(HRR hrr1, HRR hrr2){
 }
 
 // Calculate the dot product of two HRRs
-float HRREngine::dot(HRR hrr1, HRR hrr2){
+double HRREngine::dot(HRR hrr1, HRR hrr2){
 	float dotProduct = 0;
 	for (int i = 0; i < vectorSize; i++) {
 		dotProduct += hrr1[i] * hrr2[i];

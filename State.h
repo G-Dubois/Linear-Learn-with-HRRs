@@ -19,7 +19,7 @@ public:
 
     // Constructors
     State();                                // Creates a generic state
-    State(double r, int i);       // Initializes a state with given values
+    State(double r, int v, int i);          // Initializes a state with given values
 
     // Accessor Methods
     double getReward();
@@ -31,4 +31,4 @@ public:
     void isAt(int i);
 };
 
-#endif
+#endif  /* STATE */

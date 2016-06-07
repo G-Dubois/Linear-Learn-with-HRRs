@@ -11,9 +11,9 @@ State::State(){
 }
 
 // Initializing constructor
-State::State(double r, int i) {
+State::State(double r, int v, int i) {
 
-HRREngine hrrEngine(1024);
+    HRREngine hrrEngine(v);
 
     reward = r;
     hrr = hrrEngine.generateHRR();
